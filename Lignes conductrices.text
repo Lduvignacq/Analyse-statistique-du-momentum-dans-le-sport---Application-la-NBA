@@ -1,0 +1,131 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ANALYSE STATISTIQUE DU MOMENTUM DANS LE SPORT — NBA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  QUESTIONS DIRECTRICES
+  ─────────────────────
+  • Comment les runs faits par une équipe influencent-ils la victoire ?
+  • À quelle fréquence peut-on observer des runs ?
+  • Comment les cotes comparatives peuvent-elles être reliées à la victoire ?
+
+  Variables d'intérêt :
+    — Différentiel de score
+    — Points marqués par match
+    — Efficacité au tir
+    — Cotes des paris NBA
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DÉFINITION D'UN RUN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Niveau 1 — Run de points bruts
+  ───────────────────────────────
+  Séquence de points marqués consécutivement par une seule équipe.
+  Exemple :
+      Score  10 – 0   →  run de 10 pts
+      Score  15 – 2   →  run ralenti
+      Score  20 – 6   →  run de 14 pts
+
+  Critère proposé : écart relatif > 10 pts en moins de 3 minutes
+  (à affiner selon les données)
+
+  Niveau 2 — Score pondéré par actions positives
+  ───────────────────────────────────────────────
+  Actions positives et leur poids :
+    • Panier à 2 pts        → +2.0
+    • Panier à 3 pts        → +3.0
+    • Lancer franc réussi   → +1.0
+    • Rebond                → +0.5
+    • Interception          → +1.0
+    • Contre                → +0.75
+
+  Un run est alors une accumulation rapide de ce score pondéré.
+  (Modèle en cours d'affinage)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PARTIE 1 — MODÈLES ARMA / SÉRIES TEMPORELLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  • Le différentiel de score par match est-il stationnaire ?
+  • Les performances passées d'une équipe prédisent-elles
+    ses performances futures ? (coefficients AR significatifs)
+  • Les chocs (défaite surprise, blessure) persistent-ils ?
+    (coefficients MA significatifs)
+  • Comparer les ordres (p, q) entre équipes pour identifier
+    celles où le momentum est le plus persistant.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PARTIE 2 — COPULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Q1 — Dépendance offensive inter-équipes
+       Quand une équipe marque beaucoup, l'adversaire
+       marque-t-il aussi plus que d'habitude ?
+
+  Q2 — Back-to-back
+       Les équipes NBA jouent ~82 matchs en 6 mois, avec
+       environ 15 back-to-backs par saison (deux matchs
+       consécutifs). Quelle dépendance sur les résultats ?
+
+  Q3 — Impact des prolongations (overtime)
+       Les matchs en OT entraînent-ils de moins bonnes
+       performances dans les matchs suivants ?
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PARTIE 3 — THÉORIE DES VALEURS EXTRÊMES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Q1 — Quelle est la probabilité d'observer un run extrême ?
+       (niveau brut ou niveau score pondéré)
+
+  Q2 — Distribution des plus grands écarts de score (blowouts)
+       • Quelle loi ajuster sur les maxima de différentiel ?
+       • Une équipe a-t-elle tendance à répéter ce type
+         de performances sur une saison ?
+       • Cas symétrique : séries de défaites sévères.
+
+  Q3 — Overtime et performances extrêmes
+       Fréquence, distribution des prolongations,
+       impact sur les matchs suivants.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PARTIE 4 — PROCESSUS DE HAWKES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Q1 — Auto-excitation du scoring
+       Un panier augmente-t-il temporairement la probabilité
+       d'un nouveau panier (ou d'une action positive) ?
+
+  Q2 — Durée du momentum
+       Quelle est la durée moyenne d'un effet de momentum ?
+       (Pour aller plus loin : varie-t-elle selon le style
+       de jeu de l'équipe ?)
+
+  Q3 — Influence mutuelle des deux équipes
+       Les événements de scoring de l'équipe A inhibent-ils
+       ou excitent-ils le scoring de l'équipe B ?
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PARTIE 5 — STYLE DE JEU ET RUNS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Définition du style de jeu :
+  Classement des équipes selon leurs ratios relatifs
+  par rapport à la moyenne de la ligue.
+
+    • Beaucoup de rebonds + interceptions  →  style agressif / défensif
+    • Beaucoup de points marqués           →  style offensif
+    • Peu de points encaissés              →  style défensif
+    • Beaucoup de 3 pts tentés             →  style moderne / spacing
+
+  Question centrale :
+  Quel style de jeu génère le plus de runs ?
+  Le momentum est-il une propriété du style ou de l'équipe ?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
