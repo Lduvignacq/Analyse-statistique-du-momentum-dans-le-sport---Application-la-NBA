@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+from scipy.stats import genextreme
 import time
 import re
 
@@ -238,18 +239,105 @@ def point_filter2(game_id: str) -> pd.DataFrame:
     df_weighted_score_events["SCORER"] = df_weighted_score_events["WEIGHTED_SCORER"]
 
     # Group events by game and then identify consecutive weighted scoring by the same team
-    df_weighted_score_events = df_weighted_score_events.sort_values(by=['GAME_ID', 'ELAPSED_SECONDS']).reset_index(drop=True)
+    df_weighted_score_events = df_weighted_score_events.sort_values(by=['gameId', 'ELAPSED_SECONDS']).reset_index(drop=True)
     df_weighted_score_events["WEIGHTED_RUN_ID"] = (
-        df_weighted_score_events.groupby('GAME_ID')['SCORER'].bfill() !=
-        df_weighted_score_events.groupby('GAME_ID')['SCORER'].bfill().shift()
+        df_weighted_score_events.groupby('gameId')['SCORER'].bfill() !=
+        df_weighted_score_events.groupby('gameId')['SCORER'].bfill().shift()
     ).cumsum()
 
     # Aggregate by weighted run
-    weighted_runs = df_weighted_score_events.groupby(['GAME_ID', 'WEIGHTED_RUN_ID', 'SCORER']).agg(
+    weighted_runs = df_weighted_score_events.groupby(['gameId', 'WEIGHTED_RUN_ID', 'SCORER']).agg(
         weighted_pts=("WEIGHTED_SCORE", "sum"),
         start_min=("ELAPSED_MINUTES", "first"),
         end_min=("ELAPSED_MINUTES", "last"),
-        n_events=("actionType", "count"),
+        n_events=("actionType", "count")
     ).reset_index()
 
     return weighted_runs
+
+def analyze_games_for_extreme_runs(game_ids: list, extreme_threshold: int = 8, extreme_weighted_threshold: int = 10) -> pd.DataFrame:
+    """
+    Analyzes a list of NBA game IDs for extreme raw and weighted runs,
+    calculating the probability of observing such runs for each game.
+
+    Args:
+        game_ids (list): A list of NBA game IDs (strings).
+        extreme_threshold (int): The point threshold for defining an 'extreme' raw run.
+        extreme_weighted_threshold (int): The point threshold for defining an 'extreme' weighted run.
+
+    Returns:
+        pd.DataFrame: A DataFrame summarizing the extreme run probabilities for each game.
+    """
+    results = []
+
+    for game_id in game_ids:
+        print(f"Analyzing game ID: {game_id}...")
+        try:
+            # Analyze raw runs
+            runs = point_filter1(game_id)
+            total_runs_count = len(runs)
+            extreme_runs = runs[runs['pts'] >= extreme_threshold]
+            extreme_runs_count = len(extreme_runs)
+            prob_extreme_raw = extreme_runs_count / total_runs_count if total_runs_count > 0 else 0
+
+            # Analyze weighted runs
+            weighted_runs = point_filter2(game_id)
+            total_weighted_runs_count = len(weighted_runs)
+            extreme_weighted_runs = weighted_runs[weighted_runs['weighted_pts'] >= extreme_weighted_threshold]
+            extreme_weighted_runs_count = len(extreme_weighted_runs)
+            prob_extreme_weighted = extreme_weighted_runs_count / total_weighted_runs_count if total_weighted_runs_count > 0 else 0
+
+            results.append({
+                'gameId': game_id,
+                'prob_extreme_raw_run': f"{prob_extreme_raw:.4f}",
+                'num_extreme_raw_runs': extreme_runs_count,
+                'total_raw_runs': total_runs_count,
+                'raw_threshold': extreme_threshold,
+                'raw_run_points_distribution': runs['pts'].tolist(),
+                'prob_extreme_weighted_run': f"{prob_extreme_weighted:.4f}",
+                'num_extreme_weighted_runs': extreme_weighted_runs_count,
+                'total_weighted_runs': total_weighted_runs_count,
+                'weighted_threshold': extreme_weighted_threshold,
+                'weighted_run_points_distribution': weighted_runs['weighted_pts'].tolist()
+            })
+        except Exception as e:
+            print(f"Error processing game {game_id}: {e}")
+            results.append({
+                'gameId': game_id,
+                'prob_extreme_raw_run': None,
+                'num_extreme_raw_runs': None,
+                'total_raw_runs': None,
+                'raw_threshold': extreme_threshold,
+                'raw_run_points_distribution': None,
+                'prob_extreme_weighted_run': None,
+                'num_extreme_weighted_runs': None,
+                'total_weighted_runs': None,
+                'weighted_threshold': extreme_weighted_threshold,
+                'weighted_run_points_distribution': None,
+                'error': str(e)
+            })
+
+    return pd.DataFrame(results)
+
+def analysis_extreme_run(season : str, team_id: str):
+    df_games = get_games_played(team_id,season)
+    all_game_ids = df_games['Game_ID'].unique().tolist()
+    full_analysis_summary = analyze_games_for_extreme_runs(all_game_ids)
+    return full_analysis_summary
+
+
+def fit_gev_distribution(data):
+    """
+    Fits the Generalized Extreme Value (GEV) distribution to the given data.
+
+    Args:
+        data (array-like): The dataset to fit the GEV distribution to.
+
+    Returns:
+        tuple: A tuple containing the shape (c), location (loc),
+               and scale (scale) parameters of the fitted GEV distribution.
+    """
+    # Fit the GEV distribution to the data
+    c, loc, scale = genextreme.fit(data)
+    return c, loc, scale
+
