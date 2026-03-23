@@ -120,8 +120,11 @@ def get_games_played(team_id: int, season: str):
     return df_games
 
 def point_filter1(game_id: str) -> pd.DataFrame:
+    
     """Retourne les actions de scoring d'une équipe dans un match donné."""
+    
     df= get_extended_pbp(game_id)
+    
     # On ne garde que les tirs réussis et les lancers-francs convertis
     # V3 : isFieldGoal == 1 + shotResult == 'Made'  OU  actionType == 'Free Throw' + description contient 'PTS'
     mask_fg  = (df["isFieldGoal"] == 1) & (df["shotResult"] == "Made")
@@ -157,5 +160,60 @@ def point_filter1(game_id: str) -> pd.DataFrame:
     
     return runs
 
+def fetch_pbp_for_games(game_ids: list, sleep: float = 1.0) -> pd.DataFrame:
+    """Récupère et concatène le play-by-play enrichi pour une liste de Game IDs (V3)."""
+    frames = []
+    for i, gid in enumerate(game_ids):
+        gid_str = str(gid).zfill(10)
+        try:
+            pbp_tmp = nba_request_with_retry(
+                playbyplayv3.PlayByPlayV3, game_id=gid_str
+            ).get_data_frames()[0]
+
+            pbp_tmp["GAME_ID"] = gid
+            pbp_tmp["ELAPSED_SECONDS"] = pbp_tmp.apply(
+                lambda r: clock_to_elapsed(r["period"], r["clock"]), axis=1
+            )
+            pbp_tmp["ELAPSED_MINUTES"] = pbp_tmp["ELAPSED_SECONDS"] / 60
+            pbp_tmp["SCORE_HOME"]    = pd.to_numeric(pbp_tmp["scoreHome"], errors="coerce").ffill().fillna(0)
+            pbp_tmp["SCORE_VISITOR"] = pd.to_numeric(pbp_tmp["scoreAway"], errors="coerce").ffill().fillna(0)
+            pbp_tmp["SCOREMARGIN_FF"] = pbp_tmp["SCORE_HOME"] - pbp_tmp["SCORE_VISITOR"]
+            frames.append(pbp_tmp)
+            print(f" [{i+1}/{len(game_ids)}] Game {gid_str} OK ({len(pbp_tmp)} actions)")
+        except Exception as e:
+            print(f" [{i+1}/{len(game_ids)}] Game {gid_str} abandonné : {e}")
+        time.sleep(sleep)
+
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+def calculate_weighted_score(row) -> tuple:
+    """Calculates a weighted score for a play-by-play event and identifies the scoring team."""
+    weighted_score = 0
+    weighted_scorer = None
+
+    # Determine the scoring team
+    if pd.notna(row['location']): 
+        weighted_scorer = 'HOME' if row['location'] == 'h' else 'VISITOR'
+
+    # Assign weighted scores based on event type
+    if row['actionType'] == 'Made Shot':
+        weighted_score = row['shotValue']
+    elif row['actionType'] == 'Free Throw':
+        if row['description'] and 'PTS' in row['description']:
+            weighted_score = 1 
+        else:
+            weighted_score = 0
+            weighted_scorer = None 
+    elif row['actionType'] == 'Rebound':
+        weighted_score = 0.5
+    elif row['actionType'] == 'Steal':
+        weighted_score = 1.0
+    elif row['actionType'] == 'Block':
+        weighted_score = 0.75
+    
+    if weighted_score == 0:
+        weighted_scorer = None
+
+    return weighted_score, weighted_scorer
 
 
