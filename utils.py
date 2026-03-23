@@ -186,6 +186,15 @@ def fetch_pbp_for_games(game_ids: list, sleep: float = 1.0) -> pd.DataFrame:
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
+def get_home_flag(gid, team_id):
+    """Renvoie +1 si team_id était HOME, -1 si VISITOR (signe de SCOREMARGIN)."""
+    row = df_games[df_games["Game_ID"] == gid]
+    if row.empty:
+        return 1
+    matchup = row["MATCHUP"].values[0]
+    return 1 if "vs." in matchup else -1
+
+
 def calculate_weighted_score(row) -> tuple:
     """Calculates a weighted score for a play-by-play event and identifies the scoring team."""
     weighted_score = 0
@@ -216,4 +225,31 @@ def calculate_weighted_score(row) -> tuple:
 
     return weighted_score, weighted_scorer
 
+def point_filter2(game_id: str) -> pd.DataFrame:
+    """Returns a DataFrame of scoring events with weighted scores for a given game."""
+    df = get_extended_pbp(game_id)
 
+    # Calculate weighted scores and identify scoring team
+    df[['WEIGHTED_SCORE', 'WEIGHTED_SCORER']] = df.apply(calculate_weighted_score, axis=1, result_type='expand')
+
+    df_weighted_score_events = df[df['WEIGHTED_SCORE'] > 0].copy()
+
+    # Identify who scores: 'HOME' or 'VISITOR' based on WEIGHTED_SCORER
+    df_weighted_score_events["SCORER"] = df_weighted_score_events["WEIGHTED_SCORER"]
+
+    # Group events by game and then identify consecutive weighted scoring by the same team
+    df_weighted_score_events = df_weighted_score_events.sort_values(by=['GAME_ID', 'ELAPSED_SECONDS']).reset_index(drop=True)
+    df_weighted_score_events["WEIGHTED_RUN_ID"] = (
+        df_weighted_score_events.groupby('GAME_ID')['SCORER'].bfill() !=
+        df_weighted_score_events.groupby('GAME_ID')['SCORER'].bfill().shift()
+    ).cumsum()
+
+    # Aggregate by weighted run
+    weighted_runs = df_weighted_score_events.groupby(['GAME_ID', 'WEIGHTED_RUN_ID', 'SCORER']).agg(
+        weighted_pts=("WEIGHTED_SCORE", "sum"),
+        start_min=("ELAPSED_MINUTES", "first"),
+        end_min=("ELAPSED_MINUTES", "last"),
+        n_events=("actionType", "count"),
+    ).reset_index()
+
+    return weighted_runs
