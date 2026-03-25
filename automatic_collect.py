@@ -1,11 +1,13 @@
 import subprocess
 import time
 
-MAX_RESTARTS = 10000000
+MAX_RESTARTS = 10000000000
 
 for attempt in range(1, MAX_RESTARTS + 1):
-    print(f"\n=== Starting attempt {attempt}/{MAX_RESTARTS} ===")
-    result = subprocess.run(["python", "collect_score_differentials_all_teams.py"])
+    print(f"\n=== Starting attempt {attempt}/{MAX_RESTARTS} ===", flush=True)
+    result = subprocess.run(["python3", "collect_score_differentials_all_teams.py"])
+
+    print(f"Exit code: {result.returncode}", flush=True)
 
     if result.returncode == 0:
         print("Completed successfully!")

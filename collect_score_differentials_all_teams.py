@@ -1,6 +1,5 @@
 import os
 import sys
-
 import zipfile
 from tqdm import tqdm
 from nba_api.stats.static import teams, players
@@ -14,7 +13,7 @@ import time
 import pandas as pd
 import matplotlib as plt
 
-SLEEP = 0.1
+SLEEP = 1.0
 MAX_RETRIES = 3
 RETRY_WAIT = 60
 
@@ -75,16 +74,7 @@ def get_game_details_for_team_season(team_id, season):
 
         except Exception as e:
             print(f"Error processing game {game_id}: {e}")
-            game_details_list.append({
-                'team_id': team_id,
-                'game_id': game_id,
-                'game_date': game_date,
-                'matchup': matchup,
-                'wl': wl,
-                'team_score': None,
-                'ennemy_score': None,
-                'score_differential': None
-            })
+            raise  # bubbles up to outer except -> sys.exit(1) -> run.py restarts
 
     df_game_details = pd.DataFrame(game_details_list)
     return df_game_details
@@ -131,7 +121,6 @@ for team in tqdm(all_teams, desc="Processing Teams"):
         except Exception as e:
             print(f"    Error fetching data for {team['full_name']} in season {season_str}: {e}")
             sys.exit(1)
-
 
         time.sleep(SLEEP)
 
