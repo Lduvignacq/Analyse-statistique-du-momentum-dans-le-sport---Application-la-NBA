@@ -1,4 +1,6 @@
 import os
+import sys
+
 import zipfile
 from tqdm import tqdm
 from nba_api.stats.static import teams, players
@@ -128,6 +130,8 @@ for team in tqdm(all_teams, desc="Processing Teams"):
 
         except Exception as e:
             print(f"    Error fetching data for {team['full_name']} in season {season_str}: {e}")
+            sys.exit(1)
+
 
         time.sleep(SLEEP)
 
