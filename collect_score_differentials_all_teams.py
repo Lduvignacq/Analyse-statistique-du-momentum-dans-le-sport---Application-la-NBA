@@ -31,6 +31,7 @@ def api_call_with_retry(func, *args, **kwargs):
                 time.sleep(RETRY_WAIT)
             else:
                 print(f"    Max retries reached, skipping.")
+                sys.exit(1)
                 raise
 
 
