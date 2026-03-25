@@ -13,7 +13,7 @@ import time
 import pandas as pd
 import matplotlib as plt
 
-SLEEP = 1.0
+SLEEP = 0.1
 MAX_RETRIES = 3
 RETRY_WAIT = 60
 
@@ -134,3 +134,4 @@ for team in tqdm(all_teams, desc="Processing Teams"):
     print(f"  Zipped data for {team['full_name']} to {zip_file_name}")
 
 print("\nData collection and zipping process completed.")
+ 
