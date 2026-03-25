@@ -341,3 +341,59 @@ def fit_gev_distribution(data):
     c, loc, scale = genextreme.fit(data)
     return c, loc, scale
 
+def get_blowout_games_and_scores(team_id, season, percentile_threshold=90):
+    
+    print(f"Analyzing season {season} for team ID {team_id} with percentile threshold {percentile_threshold}")
+
+    df_games = get_games_played(team_id, season)
+    if df_games.empty:
+        print("No games found for the specified team and season.")
+        return []
+
+    game_score_diffs = []
+
+    for index, game_row in df_games.iterrows():
+        game_id = game_row['Game_ID']
+        try:
+            box = get_box(game_id=game_id)
+            df_teams_box = box.get_data_frames()[1]
+
+            team_pts = df_teams_box[df_teams_box['TEAM_ID'] == team_id]['PTS'].iloc[0]
+            opponent_pts = df_teams_box[df_teams_box['TEAM_ID'] != team_id]['PTS'].iloc[0]
+
+            score_difference = team_pts - opponent_pts
+            game_score_diffs.append((game_id, score_difference))
+        except Exception as e:
+            print(f"Could not retrieve box score for game {game_id}: {e}")
+            continue
+
+    if not game_score_diffs:
+        print("No score differences could be calculated.")
+        return []
+
+    # Separate positive and negative score differences for percentile calculation
+    all_score_differences = [diff for _, diff in game_score_diffs]
+    positive_score_diffs = [diff for diff in all_score_differences if diff > 0]
+    negative_score_diffs = [diff for diff in all_score_differences if diff < 0]
+
+    winning_blowout_threshold = 0
+    if positive_score_diffs:
+        winning_blowout_threshold = np.percentile(positive_score_diffs, percentile_threshold)
+    else:
+        print("No positive score differences to calculate winning blowout threshold.")
+
+    losing_blowout_threshold = 0
+    if negative_score_diffs:
+        losing_blowout_threshold = np.percentile(negative_score_diffs, 100 - percentile_threshold)
+    else:
+        print("No negative score differences to calculate losing blowout threshold.")
+
+    blowout_games = []
+    for game_id, score_diff in game_score_diffs:
+        if score_diff >= winning_blowout_threshold or score_diff <= losing_blowout_threshold:
+            blowout_games.append((game_id, score_diff))
+
+    print(f"Identified {len(blowout_games)} blowout games for {season}.")
+    return blowout_games
+
+
