@@ -14,7 +14,7 @@ import time
 import pandas as pd
 import matplotlib as plt
 
-SLEEP = 1.0
+SLEEP = 0.1
 MAX_RETRIES = 3
 RETRY_WAIT = 60
 
