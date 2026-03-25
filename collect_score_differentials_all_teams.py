@@ -11,18 +11,33 @@ from nba_api.stats.endpoints import (
 import time
 import pandas as pd
 import matplotlib as plt
-import numpy as np
 
-SLEEP = 0.5
+SLEEP = 1.0
+MAX_RETRIES = 3
+RETRY_WAIT = 60
+
+
+def api_call_with_retry(func, *args, **kwargs):
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            result = func(*args, **kwargs)
+            time.sleep(SLEEP)
+            return result
+        except Exception as e:
+            print(f"    API error (attempt {attempt}/{MAX_RETRIES}): {e}")
+            if attempt < MAX_RETRIES:
+                print(f"    Retrying in {RETRY_WAIT} seconds...")
+                time.sleep(RETRY_WAIT)
+            else:
+                print(f"    Max retries reached, skipping.")
+                raise
 
 
 def get_game_details_for_team_season(team_id, season):
     print(f"Fetching games for team_id {team_id} in season {season}...")
 
-    # Use teamgamelog to get game logs for the specified team and season
-    team_games = teamgamelog.TeamGameLog(team_id=team_id, season=season)
+    team_games = api_call_with_retry(teamgamelog.TeamGameLog, team_id=team_id, season=season)
     df_games = team_games.get_data_frames()[0]
-    time.sleep(SLEEP) # Sleep after API call
 
     game_details_list = []
 
@@ -31,15 +46,12 @@ def get_game_details_for_team_season(team_id, season):
         game_date = game['GAME_DATE']
         matchup = game['MATCHUP']
         wl = game['WL']
-        print(f"  Processing game: {game_id} - {matchup}") # Added print statement
+        print(f"  Processing game: {game_id} - {matchup}")
 
         try:
-            # Get box score for team and opponent points
-            box = boxscoretraditionalv2.BoxScoreTraditionalV2(game_id=game_id)
+            box = api_call_with_retry(boxscoretraditionalv2.BoxScoreTraditionalV2, game_id=game_id)
             df_teams_box = box.get_data_frames()[1]
-            time.sleep(SLEEP) # Sleep after API call
 
-            # Extract team and opponent scores
             team_row = df_teams_box[df_teams_box['TEAM_ID'] == team_id]
             opponent_row = df_teams_box[df_teams_box['TEAM_ID'] != team_id]
 
@@ -71,8 +83,8 @@ def get_game_details_for_team_season(team_id, season):
                 'ennemy_score': None,
                 'score_differential': None
             })
-    df_game_details = pd.DataFrame(game_details_list)
 
+    df_game_details = pd.DataFrame(game_details_list)
     return df_game_details
 
 
@@ -100,15 +112,17 @@ for team in tqdm(all_teams, desc="Processing Teams"):
 
     for year in tqdm(range(START_YEAR, END_YEAR + 1), desc=f"  Seasons for {team['abbreviation']}", leave=False):
         season_str = f"{year}-{str(year+1)[2:]}"
+        output_csv_path = os.path.join(team_output_dir, f"{team_name_for_folder}_{season_str}_game_details.csv")
+
+        if os.path.exists(output_csv_path):
+            print(f"    Skipping {team['abbreviation']} - {season_str}, file already exists.")
+            continue
 
         try:
             df_game_details = get_game_details_for_team_season(
                 team_id=team_id,
                 season=season_str
             )
-
-            output_csv_path = os.path.join(team_output_dir, f"{team_name_for_folder}_{season_str}_game_details.csv")
-
             df_game_details.to_csv(output_csv_path, index=False)
             print(f"    Saved {len(df_game_details)} game details for {team['abbreviation']} - {season_str} to {output_csv_path}")
 
