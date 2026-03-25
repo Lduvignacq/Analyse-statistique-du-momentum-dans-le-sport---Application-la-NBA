@@ -11,8 +11,9 @@ from nba_api.stats.endpoints import (
 import time
 import pandas as pd
 import matplotlib as plt
+import numpy as np
 
-SLEEP = 1.0
+SLEEP = 0.5
 
 
 def get_game_details_for_team_season(team_id, season):
