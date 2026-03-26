@@ -2,7 +2,7 @@
 collect_scores.py
 ----------------
 Collecte les scores finaux et différentiels de score pour chaque équipe NBA
-sur une saison donnée (via nba_api). Le script génère un CSV (data/score_complete.csv)
+sur une saison donnée (via nba_api). Le script génère un CSV (data/matchs_dataset.csv)
 contenant l'état final des matchs depuis le play-by-play.
 
 Usage :
@@ -10,7 +10,7 @@ Usage :
 
 Colonnes du CSV :
     team_id, team_name, game_id, game_date, matchup, wl,
-    team_score, ennemy_score, score_differential
+    team_score, ennemy_score, score_differential, overtime, overtime_periods
 """
 
 import time
@@ -25,7 +25,7 @@ from nba_api.stats.static import teams
 # ================================================================
 SEASON    = "2024-25"
 SLEEP     = 1.2          # délai entre requêtes (rate limiting NBA API)
-OUTPUT    = Path("data/score_complete.csv")
+OUTPUT    = Path("data/match_dataset4.csv")
 
 # ================================================================
 # FONCTIONS UTILITAIRES
@@ -78,6 +78,11 @@ def fetch_team_scores(team_id: int, team_name: str) -> list[dict]:
                 playbyplayv3.PlayByPlayV3, game_id=gid_str
             ).get_data_frames()[0]
 
+            # Détermine si le match a eu des prolongations
+            max_period = int(pbp["period"].max()) if not pbp["period"].dropna().empty else 0
+            overtime = max_period > 4
+            overtime_periods = max(0, max_period - 4)
+
             score_home    = pd.to_numeric(pbp["scoreHome"], errors="coerce").ffill().fillna(0)
             score_visitor = pd.to_numeric(pbp["scoreAway"], errors="coerce").ffill().fillna(0)
 
@@ -103,8 +108,10 @@ def fetch_team_scores(team_id: int, team_name: str) -> list[dict]:
                 "team_score": final_home,
                 "ennemy_score": final_visitor,
                 "score_differential": diff,
+                "overtime": overtime,
+                "overtime_periods": overtime_periods,
             })
-            print(f"    ✅ {matchup} ({row['GAME_DATE']})  →  diff={diff:+.0f}")
+            print(f"    ✅ {matchup} ({row['GAME_DATE']})  →  diff={diff:+.0f} | OT={overtime_periods}")
 
         except Exception as e:
             print(f"    ❌ Game {gid_str} abandonné : {e}")
@@ -120,7 +127,7 @@ def fetch_team_scores(team_id: int, team_name: str) -> list[dict]:
 if __name__ == "__main__":
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
 
-    all_teams = teams.get_teams()
+    all_teams = teams.get_teams()[28:]
     print(f"▶ {len(all_teams)} équipes NBA — Saison {SEASON}\n")
 
     all_records = []
