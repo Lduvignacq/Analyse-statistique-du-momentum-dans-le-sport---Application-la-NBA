@@ -193,13 +193,19 @@ def fetch_pbp_for_games(game_ids: list, sleep: float = 1.0) -> pd.DataFrame:
 
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
-def get_home_flag(gid, team_id):
-    """Renvoie +1 si team_id était HOME, -1 si VISITOR (signe de SCOREMARGIN)."""
-    row = df_games[df_games["Game_ID"] == gid]
+def get_home_flag(gid: str, team_id: int, df_games_for_team: pd.DataFrame) -> bool:
+    """
+    Renvoie True si team_id était l'équipe à domicile pour le game_id donné,
+    False si c'était l'équipe visiteuse.
+    df_games_for_team doit être le gamelog de l'équipe 'team_id' pour la saison entière.
+    """
+    row = df_games_for_team[df_games_for_team["Game_ID"] == gid]
     if row.empty:
-        return 1
+        raise ValueError(f"Game ID {gid} not found in the provided season game log for team {team_id}.")
+    
     matchup = row["MATCHUP"].values[0]
-    return 1 if "vs." in matchup else -1
+    # 'MATCHUP' column for a team's gamelog indicates 'vs.' for home games and '@' for away games.
+    return "vs." in matchup
 
 
 def calculate_weighted_score(row) -> tuple:
