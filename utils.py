@@ -121,11 +121,15 @@ def get_games_played(team_id: int, season: str):
     return df_games
 
 def point_filter1(game_id: str) -> pd.DataFrame:
-    
+
     """Retourne les actions de scoring d'une équipe dans un match donné."""
-    
+
     df= get_extended_pbp(game_id)
-    
+
+    # Calculate ELAPSED_MINUTES of the previous action in the full pbp
+    # For the very first event, previous elapsed minutes will be 0.
+    df['PREVIOUS_ELAPSED_MINUTES'] = df['ELAPSED_MINUTES'].shift(1).fillna(0)
+
     # On ne garde que les tirs réussis et les lancers-francs convertis
     # V3 : isFieldGoal == 1 + shotResult == 'Made'  OU  actionType == 'Free Throw' + description contient 'PTS'
     mask_fg  = (df["isFieldGoal"] == 1) & (df["shotResult"] == "Made")
@@ -145,12 +149,14 @@ def point_filter1(game_id: str) -> pd.DataFrame:
     # Variation de score à chaque événement
     df_score_events["HOME_DELTA"]    = df_score_events["SCORE_HOME"].diff().fillna(0).clip(lower=0)
     df_score_events["VISITOR_DELTA"] = df_score_events["SCORE_VISITOR"].diff().fillna(0).clip(lower=0)
-    
+
     # Agrégation par run
+    # start_min is now the ELAPSED_MINUTES of the action immediately preceding the first scoring action of the run.
+    # end_min is the ELAPSED_MINUTES of the last scoring action of the run.
     runs = df_score_events.groupby(["RUN_ID", "SCORER"]).agg(
         pts_home    =("HOME_DELTA",     "sum"),
         pts_visitor =("VISITOR_DELTA",  "sum"),
-        start_min   =("ELAPSED_MINUTES","first"),
+        start_min   =("PREVIOUS_ELAPSED_MINUTES","first"),
         end_min     =("ELAPSED_MINUTES","last"),
         n_events    =("actionType",     "count"),
     ).reset_index()
@@ -158,7 +164,7 @@ def point_filter1(game_id: str) -> pd.DataFrame:
     runs["pts"] = runs.apply(
         lambda r: r["pts_home"] if r["SCORER"] == "HOME" else r["pts_visitor"], axis=1
     )
-    
+
     return runs
 
 def fetch_pbp_for_games(game_ids: list, sleep: float = 1.0) -> pd.DataFrame:
@@ -230,6 +236,10 @@ def point_filter2(game_id: str) -> pd.DataFrame:
     """Returns a DataFrame of scoring events with weighted scores for a given game."""
     df = get_extended_pbp(game_id)
 
+    # Calculate ELAPSED_MINUTES of the previous action in the full pbp
+    # For the very first event, previous elapsed minutes will be 0.
+    df['PREVIOUS_ELAPSED_MINUTES'] = df['ELAPSED_MINUTES'].shift(1).fillna(0)
+
     # Calculate weighted scores and identify scoring team
     df[['WEIGHTED_SCORE', 'WEIGHTED_SCORER']] = df.apply(calculate_weighted_score, axis=1, result_type='expand')
 
@@ -246,9 +256,11 @@ def point_filter2(game_id: str) -> pd.DataFrame:
     ).cumsum()
 
     # Aggregate by weighted run
+    # start_min is now the ELAPSED_MINUTES of the action immediately preceding the first scoring action of the run.
+    # end_min is the ELAPSED_MINUTES of the last scoring action of the run.
     weighted_runs = df_weighted_score_events.groupby(['gameId', 'WEIGHTED_RUN_ID', 'SCORER']).agg(
         weighted_pts=("WEIGHTED_SCORE", "sum"),
-        start_min=("ELAPSED_MINUTES", "first"),
+        start_min=("PREVIOUS_ELAPSED_MINUTES", "first"),
         end_min=("ELAPSED_MINUTES", "last"),
         n_events=("actionType", "count")
     ).reset_index()
